@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    #map {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+  <script src='https://cdnjs.cloudflare.com/ajax/libs/gsap/1.18.0/TweenMax.min.js'></script>
+</head>
+
+<body>
+  <div id="map"></div>
+  <script type="module">
+    import * as THREE from './js/three.module.js';
+    import { OrbitControls } from './js/OrbitControls.js';
+    import { TessellateModifier } from './js/TessellateModifier.js';
+
+    let scene = new THREE.Scene()
+
+    scene.background = new THREE.Color(0x000000);
+    scene.fog = new THREE.Fog(0x000000, 250, 1400);
+
+    let materialgeo, shadermaterial, textMesh1;
+
+    let animationDuration = 1.3425721307704763
+
+    let dom = document.getElementById('map')
+
+
+    let camera = new THREE.PerspectiveCamera(45, dom.clientWidth / dom.clientHeight, 0.1, 10000)
+
+    camera.position.set(0, 100, 500)
+
+    let renderer = new THREE.WebGLRenderer({ antialias: true })
+
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(dom.clientWidth, dom.clientHeight);
+    dom.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.125);
+    dirLight.position.set(0, 0, 1).normalize();
+    scene.add(dirLight);
+
+    const pointLight = new THREE.PointLight(0xffffff, 1.5);
+    pointLight.position.set(0, 100, 90);
+    scene.add(pointLight);
+    var utils = {
+      extend: function (dst, src) {
+        for (var key in src) {
+          dst[key] = src[key];
+        }
+
+        return dst;
+      },
+      randSign: function () {
+        return Math.random() > 0.5 ? 1 : -1;
+      },
+      ease: function (ease, t, b, c, d) {
+        return b + ease.getRatio(t / d) * c;
+      },
+      // mapEase:function(ease, v, x1, y1, x2, y2) {
+      //   var t = v;
+      //   var b = x2;
+      //   var c = y2 - x2;
+      //   var d = y1 - x1;
+      //
+      //   return utils.ease(ease, t, b, c, d);
+      // },
+      fibSpherePoint: (function () {
+        var v = {
+          x: 0,
+          y: 0,
+          z: 0
+        };
+        var G = Math.PI * (3 - Math.sqrt(5));
+
+        return function (i, n, radius) {
+          var step = 2.0 / n;
+          var r, phi;
+
+          v.y = i * step - 1 + (step * 0.5);
+          r = Math.sqrt(1 - v.y * v.y);
+          phi = i * G;
+          v.x = Math.cos(phi) * r;
+          v.z = Math.sin(phi) * r;
+
+          radius = radius || 1;
+
+          v.x *= radius;
+          v.y *= radius;
+          v.z *= radius;
+
+          return v;
+        }
+      })()
+    };
+
+    const loader = new THREE.FontLoader();
+    loader.load('fonts/AaBHZFS_Regular.json', function (response) {
+
+      let font = response;
+
+      let textGeo = new THREE.TextGeometry('武清开发区产业服务平台', {
+
+        font: font,
+
+        size: 40,
+        height: 5,
+        curveSegments: 12,
+
+        bevelThickness: 2,
+        bevelSize: 1,
+        bevelEnabled: true
+
+      });
+
+
+      textGeo.center();
+
+      const tessellateModifier = new TessellateModifier(8, 6);
+
+      textGeo = tessellateModifier.modify(textGeo);
+      textGeo.computeBoundingBox();
+
+      let position = textGeo.attributes.position;
+      var axis = new THREE.Vector3();
+      var angle;
+
+      let aAnimation = []
+      let aEndPosition = []
+      let aAxisAngle = []
+
+      let count = position.count / 3
+
+      var maxLength = textGeo.boundingBox.max.length();
+      var lengthFactor = 0.001;
+      var minDuration = 1.0;
+      var maxDuration = 1.0;
+
+      for (let i = 0, i2 = 0, i3 = 0, i4 = 0; i < count; i++, i2 += 6, i3 += 9, i4 += 12) {
+
+        let x = (position.array[i] + position.array[i + 3] + position.array[i + 6]) / 3
+        let y = (position.array[i + 1] + position.array[i + 4] + position.array[i + 7]) / 3
+        let z = (position.array[i + 2] + position.array[i + 5] + position.array[i + 8]) / 3
+        let centroid = new THREE.Vector3(x, y, z)
+        let centroidN = new THREE.Vector3().copy(centroid).normalize()
+
+        var delay = (maxLength - centroid.length()) * lengthFactor;
+        var duration = THREE.MathUtils.randFloat(minDuration, maxDuration);
+
+        for (let v = 0; v < 6; v += 2) {
+          aAnimation[i2 + v] = delay + 0.05 * Math.random()
+          aAnimation[i2 + v + 1] = duration
+        }
+
+        var point = utils.fibSpherePoint(i, count, 200);
+
+        for (let v = 0; v < 9; v += 3) {
+
+          aEndPosition[i3 + v] = point.x;
+          aEndPosition[i3 + v + 1] = point.y;
+          aEndPosition[i3 + v + 2] = point.z;
+        }
+
+        axis.x = centroidN.x;
+        axis.y = -centroidN.y;
+        axis.z = -centroidN.z;
+
+        axis.normalize();
+
+        angle = Math.PI * THREE.MathUtils.randFloat(0.5, 2.0);
+
+        for (let v = 0; v < 12; v += 4) {
+          aAxisAngle[i4 + v] = axis.x;
+          aAxisAngle[i4 + v + 1] = axis.y;
+          aAxisAngle[i4 + v + 2] = axis.z;
+          aAxisAngle[i4 + v + 3] = angle;
+        }
+      }
+
+      textGeo.setAttribute('aAnimation', new THREE.BufferAttribute(new Float32Array(aAnimation), 2));
+      textGeo.setAttribute('aEndPosition', new THREE.BufferAttribute(new Float32Array(aEndPosition), 3));
+      textGeo.setAttribute('aAxisAngle', new THREE.BufferAttribute(new Float32Array(aAxisAngle), 4));
+
+      materialgeo = addmaterial()
+
+      let shadermaterial = new THREE.ShaderMaterial({
+        uniforms: {
+          uTime: { type: 'f', value: 0 }
+        },
+        vertexShader: [
+          'uniform float uTime;',
+          'attribute vec2 aAnimation;',
+          'attribute vec3 aEndPosition;',
+          'attribute vec4 aAxisAngle;',
+
+          'vec3 cubicBezier(vec3 p0, vec3 c0, vec3 c1, vec3 p1, float t)\n{\n    vec3 tp;\n    float tn = 1.0 - t;\n\n    tp.xyz = tn * tn * tn * p0.xyz + 3.0 * tn * tn * t * c0.xyz + 3.0 * tn * t * t * c1.xyz + t * t * t * p1.xyz;\n\n    return tp;\n}',
+          'float ease(float t, float b, float c, float d) {\n  return c*((t=t/d - 1.0)*t*t + 1.0) + b;\n}',
+          'vec3 rotateVector(vec4 q, vec3 v)\n{\n    return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);\n}\n\nvec4 quatFromAxisAngle(vec3 axis, float angle)\n{\n    float halfAngle = angle * 0.5;\n    return vec4(axis.xyz * sin(halfAngle), cos(halfAngle));\n}',
+
+          'void main() {',
+          'float tDelay = aAnimation.x;',
+          'float tDuration = aAnimation.y;',
+          'float tTime = clamp(uTime - tDelay, 0.0, tDuration);',
+          'float tProgress = ease(tTime, 0.0, 1.0, tDuration);',
+
+          'vec3 transformed = vec3( position );',
+          'transformed = mix(transformed, aEndPosition, tProgress);',
+          'float angle = aAxisAngle.w * tProgress;',
+          'vec4 tQuat = quatFromAxisAngle(aAxisAngle.xyz, angle);',
+          'transformed = rotateVector(tQuat, transformed);',
+          'gl_Position = projectionMatrix * modelViewMatrix * vec4( transformed, 1.0 );',
+          '}'
+        ].join("\n"),
+        fragmentShader: [
+          'void main() {',
+          'gl_FragColor = vec4( 1.0, 1.0, 0.0, 1.0 );',
+          '}'
+        ].join("\n")
+      })
+      textMesh1 = new THREE.Mesh(textGeo, materialgeo);
+      textMesh1.animationProgress = 0
+
+      var tl = new TimelineMax({
+        repeat: -1,
+        repeatDelay: 0.5,
+        yoyo: true
+      });
+      tl.fromTo(textMesh1, 4,
+        { animationProgress: 0.0 },
+        { animationProgress: 0.5, ease: Power1.easeInOut },
+        0
+      );
+      tl.fromTo(textMesh1.rotation, 4, { y: 0 }, { y: Math.PI * 2, ease: Power1.easeInOut }, 0);
+
+      scene.add(textMesh1)
+    });
+
+    render()
+
+    function render() {
+      renderer.render(scene, camera)
+      if (materialgeo) {
+        materialgeo.uniforms['uTime'].value = animationDuration * textMesh1.animationProgress
+      }
+      requestAnimationFrame(render)
+    }
+
+    function addmaterial() {
+
+
+      var phongShader = THREE.ShaderLib['phong'];
+
+      var uniforms = THREE.UniformsUtils.merge([phongShader.uniforms, {
+        uTime: { type: 'f', value: 0 }
+      }]);
+
+      uniforms.diffuse.value.set(0x444444);
+      uniforms.specular.value.set('#ff5b00')
+
+      var vertexShader = [
+        '#define PHONG',
+
+        'varying vec3 vViewPosition;',
+
+        '#ifndef FLAT_SHADED',
+
+        'varying vec3 vNormal;',
+
+        '#endif',
+
+        THREE.ShaderChunk["common"],
+        THREE.ShaderChunk["uv_pars_vertex"],
+        THREE.ShaderChunk["uv2_pars_vertex"],
+        THREE.ShaderChunk["displacementmap_pars_vertex"],
+        THREE.ShaderChunk["envmap_pars_vertex"],
+        THREE.ShaderChunk["lights_phong_pars_vertex"],
+        THREE.ShaderChunk["color_pars_vertex"],
+        THREE.ShaderChunk["morphtarget_pars_vertex"],
+        THREE.ShaderChunk["skinning_pars_vertex"],
+        THREE.ShaderChunk["shadowmap_pars_vertex"],
+        THREE.ShaderChunk["logdepthbuf_pars_vertex"],
+
+        'vec3 cubicBezier(vec3 p0, vec3 c0, vec3 c1, vec3 p1, float t)\n{\n    vec3 tp;\n    float tn = 1.0 - t;\n\n    tp.xyz = tn * tn * tn * p0.xyz + 3.0 * tn * tn * t * c0.xyz + 3.0 * tn * t * t * c1.xyz + t * t * t * p1.xyz;\n\n    return tp;\n}',
+        'float ease(float t, float b, float c, float d) {\n  return c*((t=t/d - 1.0)*t*t + 1.0) + b;\n}',
+        'vec3 rotateVector(vec4 q, vec3 v)\n{\n    return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);\n}\n\nvec4 quatFromAxisAngle(vec3 axis, float angle)\n{\n    float halfAngle = angle * 0.5;\n    return vec4(axis.xyz * sin(halfAngle), cos(halfAngle));\n}',
+        'uniform float uTime;',
+        'uniform vec3 uAxis;',
+        'uniform float uAngle;',
+        'attribute vec2 aAnimation;',
+        'attribute vec3 aEndPosition;',
+        'attribute vec4 aAxisAngle;',
+        'void main() {',
+        'float tDelay = aAnimation.x;',
+        'float tDuration = aAnimation.y;',
+        'float tTime = clamp(uTime - tDelay, 0.0, tDuration);',
+        'float tProgress = ease(tTime, 0.0, 1.0, tDuration);',
+
+        THREE.ShaderChunk["uv_vertex"],
+        THREE.ShaderChunk["uv2_vertex"],
+        THREE.ShaderChunk["color_vertex"],
+        THREE.ShaderChunk["beginnormal_vertex"],
+        THREE.ShaderChunk["morphnormal_vertex"],
+        THREE.ShaderChunk["skinbase_vertex"],
+        THREE.ShaderChunk["skinnormal_vertex"],
+        THREE.ShaderChunk["defaultnormal_vertex"],
+
+        '#ifndef FLAT_SHADED',
+        'vNormal = normalize( transformedNormal );',
+        '#endif',
+
+        THREE.ShaderChunk["begin_vertex"],
+
+        'transformed = mix(transformed, aEndPosition, tProgress);',
+        'float angle = aAxisAngle.w * tProgress;',
+        'vec4 tQuat = quatFromAxisAngle(aAxisAngle.xyz, angle);',
+        'transformed = rotateVector(tQuat, transformed);',
+
+        THREE.ShaderChunk["displacementmap_vertex"],
+        THREE.ShaderChunk["morphtarget_vertex"],
+        THREE.ShaderChunk["skinning_vertex"],
+        THREE.ShaderChunk["project_vertex"],
+        THREE.ShaderChunk["logdepthbuf_vertex"],
+
+        'vViewPosition = - mvPosition.xyz;',
+
+        THREE.ShaderChunk["worldpos_vertex"],
+        THREE.ShaderChunk["envmap_vertex"],
+        THREE.ShaderChunk["lights_phong_vertex"],
+        THREE.ShaderChunk["shadowmap_vertex"],
+        "}"
+      ].join("\n")
+
+      let material = new THREE.ShaderMaterial({
+        uniforms: uniforms,
+        vertexShader: vertexShader,
+        fragmentShader: phongShader.fragmentShader
+      })
+      material.lights = true;
+
+      return material
+    }
+  </script>
+</body>
+
+</html>
